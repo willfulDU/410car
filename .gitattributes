@@ -1,0 +1,7 @@
+# Keep source files consistently readable across Windows, macOS, and Linux.
+* text=auto
+*.c text eol=lf
+*.h text eol=lf
+*.s text eol=lf
+*.txt text eol=lf
+*.md text eol=lf

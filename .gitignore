@@ -1,0 +1,32 @@
+# Keil MDK generated build output
+Project/Output/
+Project/Listing/
+*.axf
+*.bin
+*.crf
+*.d
+*.dep
+*.hex
+*.lnp
+*.lst
+*.map
+*.o
+
+# Per-user Keil settings
+*.uvguix.*
+*.uvgui.*
+*.uvopt
+*.uvoptx
+
+# Debugger logs and local IDE files
+JLinkLog.txt
+JLinkSettings.ini
+.vscode/
+
+# Editor and operating-system clutter
+*.bak
+*.swp
+*.tmp
+*~
+.DS_Store
+Thumbs.db
