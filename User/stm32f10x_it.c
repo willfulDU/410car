@@ -26,6 +26,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f10x_it.h"
 #include "can/bsp_can.h"
+#include "SysTick/bsp_SysTick.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
@@ -137,6 +138,8 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
+	TimingDelay_Decrement();   /* 递减 TimingDelay，供 Delay_us/Delay_ms 使用 */
+	SysTick_Counter();         /* 1s 时基：累计并置 1s 标志位 */
 }
 
 /*

@@ -24,6 +24,8 @@
 #endif
 
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
+#define GROUP_NO     "01"       // 组号（上电/重置后显示）
+#define SHOW_DATE    "2026.9"   // 显示日期
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -99,6 +101,10 @@ int main(void)//方向盘ecu
 		OLED_ShowString(2, 1, "TURN:");
 		OLED_ShowString(1, 7, "N  ");
 		OLED_ShowString(2, 7, "OFF  ");
+		
+		/* ===== 上电/重置后显示组号 + 日期（PPT 评分注要求） ===== */
+		OLED_ShowString2x(1, 4, GROUP_NO);   // 上半屏 2x 大号显示组号
+		OLED_ShowString(4, 6, SHOW_DATE);    // 第 4 行显示日期
 		
 		WS2812_Init();
 		
