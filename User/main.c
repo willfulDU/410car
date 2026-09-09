@@ -21,6 +21,7 @@
 #include "oled.h"
 #include "switch.h"
 #include "wheel_speed.h"
+#include "differential_steering.h"
 
 #endif
 
@@ -30,6 +31,9 @@
 #define PINK_R  255   // 转向灯颜色：粉色（R）
 #define PINK_G  105   // 转向灯颜色：粉色（G）
 #define PINK_B  180   // 转向灯颜色：粉色（B）
+#define RADIO_COMMAND_TIMEOUT_MS        100U
+#define WHEEL_SPEED_STARTUP_TIMEOUT_MS  750U
+#define WHEEL_SPEED_STARTUP_DUTY_MAX    20U
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -131,6 +135,17 @@ int main(void)//方向盘ecu
 		uint16_t wheel_value;
 		uint8_t motor_duty;
 		uint8_t direction;
+		uint8_t active_direction = DNR_NEUTRAL;
+		uint8_t have_control_frame = 0U;
+		uint8_t feedback_fault = 0U;
+		uint32_t last_control_ms = 0U;
+		uint32_t last_valid_frame_ms = 0U;
+		uint32_t feedback_start_ms = 0U;
+		uint32_t now;
+		uint16_t center_rpm;
+		uint8_t startup_duty;
+		DifferentialSteeringCommand target_command;
+		DifferentialSteeringCommand differential_command;
 		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
 		
 		OLED_Init();
@@ -142,6 +157,7 @@ int main(void)//方向盘ecu
 		Turn_Init();
 		Motor_Init();
 		WheelSpeed_Init();
+		DifferentialSteering_Init();
 		
 		Turn_SetDuty(50);    // 开机归中
 		Motor_SetCW(0);
@@ -154,21 +170,40 @@ int main(void)//方向盘ecu
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 			WheelSpeed_Update();
 			WheelSpeed_DisplayUpdate();
-			if (data_len != TX_DATA_LEN)
+			now = SysTick_GetTick();
+			if (data_len != 0U)
 			{
-				Motor_SetCW(0);
+				if ((data_len != TX_DATA_LEN) ||
+					!(rx_buffer[0] == 0x01 && rx_buffer[4] == 0x02 && rx_buffer[6] == 0x03))
+				{
+					have_control_frame = 0U;
+				}
+				else
+				{
+					have_control_frame = 1U;
+					last_valid_frame_ms = now;
+				}
+			}
+
+			if ((have_control_frame == 0U) ||
+				((uint32_t)(now - last_valid_frame_ms) >= RADIO_COMMAND_TIMEOUT_MS))
+			{
+				DifferentialSteering_Reset();
+				Motor1_SetDuty(0);
+				Motor2_SetDuty(0);
+				have_control_frame = 0U;
+				feedback_start_ms = 0U;
+				feedback_fault = 0U;
+				if (active_direction != DNR_NEUTRAL)
+				{
+					Motor_SetCW(DNR_NEUTRAL);
+					active_direction = DNR_NEUTRAL;
+				}
 				continue;
 			}
 			
 			/*********************************接收数据处理**************************************/
 			/*数据组成：（方向盘转角、踏板标志）（方向盘转角量1）（方向盘转角量2）（油门踏板量）（前进后退空挡标志）（前进后退空挡信号）（左右转向灯标志）（左右转灯信号）*/
-			/*标志位用来二次验证，以免数据错用*/
-			if (data_len < TX_DATA_LEN ||
-				!(rx_buffer[0] == 0x01 && rx_buffer[4] == 0x02 && rx_buffer[6] == 0x03))
-			{
-				Motor_SetCW(0);
-				continue;
-			}
 
 			if (rx_buffer[5] != last_dnr)
 			{
@@ -208,16 +243,91 @@ int main(void)//方向盘ecu
 			Turn_SetDuty(map_wheel(wheel_value));
 
 			direction = rx_buffer[5];
-			if ((direction == 1) || (direction == 2))
+			motor_duty = map_pedal(rx_buffer[3]);
+			if (((direction == DNR_FORWARD) || (direction == DNR_REVERSE)) &&
+				(motor_duty > 0U))
 			{
-				motor_duty = map_pedal(rx_buffer[3]);
-				Motor_SetCW(direction);
-				Motor1_SetDuty(motor_duty);
-				Motor2_SetDuty(motor_duty);
+				if (direction != active_direction)
+				{
+					DifferentialSteering_Reset();
+					Motor_SetCW(direction);
+					active_direction = direction;
+					last_control_ms = SysTick_GetTick() - DIFFERENTIAL_CONTROL_PERIOD_MS;
+					feedback_start_ms = 0U;
+					feedback_fault = 0U;
+				}
+
+				now = SysTick_GetTick();
+				if ((uint32_t)(now - last_control_ms) >= DIFFERENTIAL_CONTROL_PERIOD_MS)
+				{
+					last_control_ms = now;
+					center_rpm = DifferentialSteering_MapCenterRpm(motor_duty);
+					DifferentialSteering_BuildTargets(
+						center_rpm,
+						DifferentialSteering_MapSteeringDegrees(wheel_value),
+						&target_command);
+					if (feedback_fault != 0U)
+					{
+						Motor1_SetDuty(0);
+						Motor2_SetDuty(0);
+					}
+					else if ((WheelSpeed_HasFreshFeedback(WHEEL_LEFT) != 0U) &&
+							 (WheelSpeed_HasFreshFeedback(WHEEL_RIGHT) != 0U))
+					{
+						feedback_start_ms = 0U;
+						DifferentialSteering_UpdateTargets(
+							target_command.left_target_rpm,
+							target_command.right_target_rpm,
+							WheelSpeed_GetRpm(WHEEL_LEFT),
+							WheelSpeed_GetRpm(WHEEL_RIGHT),
+							&differential_command);
+						/* Motor2/PA1 is left rear; Motor1/PA2 is right rear. */
+						Motor2_SetDuty(differential_command.left_duty);
+						Motor1_SetDuty(differential_command.right_duty);
+					}
+					else
+					{
+						if (feedback_start_ms == 0U)
+						{
+							feedback_start_ms = now;
+						}
+						if ((uint32_t)(now - feedback_start_ms) >= WHEEL_SPEED_STARTUP_TIMEOUT_MS)
+						{
+							feedback_fault = 1U;
+							DifferentialSteering_Reset();
+							Motor1_SetDuty(0);
+							Motor2_SetDuty(0);
+						}
+						else
+						{
+							startup_duty = motor_duty;
+							if (startup_duty > WHEEL_SPEED_STARTUP_DUTY_MAX)
+							{
+								startup_duty = WHEEL_SPEED_STARTUP_DUTY_MAX;
+							}
+							/* Preserve the requested ratio until FG feedback becomes valid. */
+							Motor2_SetDuty((uint8_t)(((uint32_t)startup_duty *
+								target_command.left_target_rpm + (center_rpm / 2U)) /
+								center_rpm));
+							Motor1_SetDuty((uint8_t)(((uint32_t)startup_duty *
+								target_command.right_target_rpm + (center_rpm / 2U)) /
+								center_rpm));
+						}
+					}
+				}
 			}
 			else
 			{
-				Motor_SetCW(0);
+				DifferentialSteering_Reset();
+				Motor1_SetDuty(0);
+				Motor2_SetDuty(0);
+				feedback_start_ms = 0U;
+				feedback_fault = 0U;
+				if (active_direction != DNR_NEUTRAL)
+				{
+					Motor_SetCW(DNR_NEUTRAL);
+					active_direction = DNR_NEUTRAL;
+				}
 			}
 			
 			/* ===== 灯光：显式逐灯硬性设置，避免残留/冲突 =====

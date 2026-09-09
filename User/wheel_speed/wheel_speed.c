@@ -14,6 +14,8 @@
 #endif
 
 static volatile uint32_t s_pulses[WHEEL_SIDE_COUNT];
+static volatile uint32_t s_last_pulse_ms[WHEEL_SIDE_COUNT];
+static volatile uint8_t s_has_pulse[WHEEL_SIDE_COUNT];
 static uint32_t s_last_pulses[WHEEL_SIDE_COUNT];
 static uint16_t s_rpm[WHEEL_SIDE_COUNT];
 static uint32_t s_window_start_ms;
@@ -28,6 +30,8 @@ void WheelSpeed_Init(void)
     for (i = 0U; i < WHEEL_SIDE_COUNT; ++i)
     {
         s_pulses[i] = 0U;
+        s_last_pulse_ms[i] = 0U;
+        s_has_pulse[i] = 0U;
         s_last_pulses[i] = 0U;
         s_rpm[i] = 0U;
     }
@@ -113,12 +117,37 @@ uint32_t WheelSpeed_GetPulses(WheelSide side)
     return s_pulses[(uint8_t)side];
 }
 
+uint8_t WheelSpeed_HasFreshFeedback(WheelSide side)
+{
+    uint32_t now;
+
+    if ((uint8_t)side >= WHEEL_SIDE_COUNT)
+    {
+        return 0U;
+    }
+    if (s_has_pulse[(uint8_t)side] == 0U)
+    {
+        return 0U;
+    }
+
+    now = SysTick_GetTick();
+    if ((uint32_t)(now - s_last_pulse_ms[(uint8_t)side]) >
+        WHEEL_SPEED_FEEDBACK_TIMEOUT_MS)
+    {
+        return 0U;
+    }
+
+    return 1U;
+}
+
 void EXTI1_IRQHandler(void)
 {
     if (EXTI_GetITStatus(EXTI_Line1) != RESET)
     {
         EXTI_ClearITPendingBit(EXTI_Line1);
         s_pulses[WHEEL_SIDE_OF_PA1]++;
+        s_last_pulse_ms[WHEEL_SIDE_OF_PA1] = SysTick_GetTick();
+        s_has_pulse[WHEEL_SIDE_OF_PA1] = 1U;
     }
 }
 
@@ -128,5 +157,7 @@ void EXTI2_IRQHandler(void)
     {
         EXTI_ClearITPendingBit(EXTI_Line2);
         s_pulses[WHEEL_SIDE_OF_PA2]++;
+        s_last_pulse_ms[WHEEL_SIDE_OF_PA2] = SysTick_GetTick();
+        s_has_pulse[WHEEL_SIDE_OF_PA2] = 1U;
     }
 }

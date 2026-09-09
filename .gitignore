@@ -12,6 +12,9 @@ Project/Listing/
 *.map
 *.o
 
+# Host-side differential-steering test output
+/tests/differential_steering/build/
+
 # Per-user Keil settings
 *.uvguix.*
 *.uvgui.*

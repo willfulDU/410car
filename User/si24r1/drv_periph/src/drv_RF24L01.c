@@ -566,36 +566,27 @@ uint8_t NRF24L01_TxPacket( uint8_t *txbuf, uint8_t Length )
   */ 
 uint8_t NRF24L01_RxPacket( uint8_t *rxbuf )
 {
-	uint8_t l_Status = 0, l_RxLength = 0, l_100MsTimes = 0;
-	
-	RF24L01_SET_CS_LOW( );		//片选
-	drv_spi_read_write_byte( FLUSH_RX );
-	RF24L01_SET_CS_HIGH( );
-	
-	while( 0 != RF24L01_GET_IRQ_STATUS( ))
+	uint8_t l_Status;
+	uint8_t l_RxLength;
+
+	/* Non-blocking polling: the main ECU owns the command timeout. */
+	l_Status = NRF24L01_Read_Reg( STATUS );
+	if( !(l_Status & RX_OK) )
 	{
-		drv_delay_ms( 100 );
-		
-		if( 30 == l_100MsTimes++ )		//3s没接收过数据，重新初始化模块
-		{
-			NRF24L01_Gpio_Init( );
-			RF24L01_Init( );
-			RF24L01_Set_Mode( MODE_RX );
-			break;
-		}
+		return 0;
 	}
-	
-	l_Status = NRF24L01_Read_Reg( STATUS );		//读状态寄存器
+
 	NRF24L01_Write_Reg( STATUS,l_Status );		//清中断标志
-	if( l_Status & RX_OK)	//接收到数据
+	l_RxLength = NRF24L01_Read_Reg( R_RX_PL_WID );		//读取接收到的数据个数
+	if( (l_RxLength == 0U) || (l_RxLength > 32U) )
 	{
-		l_RxLength = NRF24L01_Read_Reg( R_RX_PL_WID );		//读取接收到的数据个数
-		NRF24L01_Read_Buf( RD_RX_PLOAD,rxbuf,l_RxLength );	//接收到数据 
-		NRF24L01_Write_Reg( FLUSH_RX,0xff );				//清除RX FIFO
-		return l_RxLength; 
-	}	
-	
-	return 0;				//没有收到数据	
+		NRF24L01_Write_Reg( FLUSH_RX,0xff );
+		return 0;
+	}
+
+	NRF24L01_Read_Buf( RD_RX_PLOAD,rxbuf,l_RxLength );	//接收到数据
+	NRF24L01_Write_Reg( FLUSH_RX,0xff );				//清除RX FIFO
+	return l_RxLength;
 }
 
  /**
