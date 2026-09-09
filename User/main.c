@@ -278,6 +278,11 @@ int main(void)//方向盘ecu
 		while(1)
 		{
 			distance=Distance_Update(1);
+			//测量模式
+			//#define Default_Mode   0// 默认
+			//#define HIGH_ACCURACY  1//高精度
+			//#define LONG_RANGE     2//长距离
+			//#define HIGH_SPEED     3//高速
 			printf("%d\n",distance);
 		}
 	}
