@@ -20,6 +20,7 @@
 #include "turn.h"
 #include "oled.h"
 #include "switch.h"
+#include "wheel_speed.h"
 
 #endif
 
@@ -82,6 +83,34 @@ int main(void)//方向盘ecu
 
 	#ifdef _MAIN_ECU_
 
+	#define WHEEL_SPEED_DISPLAY_PERIOD_MS  250U
+
+	static void WheelSpeed_DisplayUpdate(void)
+	{
+		static uint32_t last_update_ms = 0U;
+		static char previous[14] = "";
+		char text[14];
+		uint32_t now;
+
+		now = SysTick_GetTick();
+		if ((uint32_t)(now - last_update_ms) < WHEEL_SPEED_DISPLAY_PERIOD_MS)
+		{
+			return;
+		}
+		last_update_ms = now;
+
+		strcpy(text, "L:     R:    ");
+		WheelSpeedCalc_Format(text + 2, WheelSpeed_GetRpm(WHEEL_LEFT));
+		text[6] = ' ';
+		WheelSpeedCalc_Format(text + 9, WheelSpeed_GetRpm(WHEEL_RIGHT));
+
+		if (strcmp(text, previous) != 0)
+		{
+			OLED_ShowString(4, 1, text);
+			strcpy(previous, text);
+		}
+	}
+
 	int main(void)//车端
 	{
 		SystemInit();
@@ -113,6 +142,7 @@ int main(void)//方向盘ecu
 		
 		Turn_Init();
 		Motor_Init();
+		WheelSpeed_Init();
 		
 		Turn_SetDuty(50);    // 开机归中
 		Motor_SetCW(0);
@@ -123,6 +153,8 @@ int main(void)//方向盘ecu
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
+			WheelSpeed_Update();
+			WheelSpeed_DisplayUpdate();
 			if (data_len != TX_DATA_LEN)
 			{
 				Motor_SetCW(0);

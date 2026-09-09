@@ -120,8 +120,10 @@ void SysTick_Delay_Ms( __IO uint32_t ms)
  * main.c 只读取 / 清除下面的 1s 标志位。
  * 1s = 100000 次 10us 中断。
  * ====================================================================== */
-static __IO uint32_t SysTickCnt    = 0;   /* 10us 累计计数器 */
-static __IO uint32_t SysTick1sFlag = 0;   /* 1s 标志：中断置位，main 清除 */
+static __IO uint8_t SysTickSubMs = 0;
+static __IO uint16_t SysTickMsInSecond = 0;
+static __IO uint32_t SysTickMs = 0;
+static __IO uint32_t SysTick1sFlag = 0;
 
 /**
   * @brief  在 SysTick_Handler 中调用（每 10us 一次），
@@ -130,12 +132,18 @@ static __IO uint32_t SysTick1sFlag = 0;   /* 1s 标志：中断置位，main 清除 */
   */
 void SysTick_Counter(void)
 {
-	if (++SysTickCnt >= 100000)      /* 100000 * 10us = 1s */
+	if (++SysTickSubMs >= 100U)
 	{
-		SysTickCnt    = 0;
-		SysTick1sFlag = 1;             /* 通知 main.c：已到 1 秒 */
+		SysTickSubMs = 0U;
+		SysTickMs++;
+		if (++SysTickMsInSecond >= 1000U)
+		{
+			SysTickMsInSecond = 0U;
+			SysTick1sFlag = 1;
+		}
 	}
 }
+
 
 /**
   * @brief  读取 1s 标志位。
@@ -157,3 +165,8 @@ void SysTick_ClearFlag(void)
 
 
 /*********************************************END OF FILE**********************/
+
+uint32_t SysTick_GetTick(void)
+{
+	return SysTickMs;
+}
