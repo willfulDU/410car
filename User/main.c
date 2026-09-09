@@ -23,6 +23,8 @@
 #endif
 
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
+#define GROUP_NO     "01"       // 组号（上电/重置后显示）
+#define SHOW_DATE    "2026.9"   // 显示日期
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -90,15 +92,12 @@ int main(void)//方向盘ecu
 		
 		uint8_t rx_buffer[32];       // 接收缓冲区（足够大）
 		volatile uint8_t data_len;
-		uint8_t  disp_num = 1;        // 下一个要显示的数字（上电已先显示 0）
 		
 		OLED_Init();
 		
-		
-		
-		/* ===== 屏幕定时刷新：上电先显示 0，之后每秒 +1（0~9 循环） ===== */
-		
-		OLED_ShowInt(2, 7, 0);        // 第 2 行第 7 列显示初始数字 0
+		/* ===== 上电/重置后显示组号 + 日期（PPT 评分注要求） ===== */
+		OLED_ShowString2x(1, 4, GROUP_NO);   // 上半屏 2x 大号显示组号
+		OLED_ShowString(4, 6, SHOW_DATE);    // 第 4 行显示日期
 		
 		WS2812_Init();
 		
@@ -113,15 +112,6 @@ int main(void)//方向盘ecu
 		
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
-			/* ===== 每 1s 刷新一次屏幕，0~9 循环 =====
-			 * 计时在 SysTick 中断里完成，这里只轮询 1s 标志位 */
-			if (SysTick_GetFlag())
-			{
-				SysTick_ClearFlag();              // 清标志，等待下一个 1s
-				OLED_ShowInt(2, 7, disp_num);     // 显示当前数字
-				disp_num = (disp_num + 1) % 10;   // 0~9 循环
-			}
-			
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 			
 			/*********************************接收数据处理**************************************/
