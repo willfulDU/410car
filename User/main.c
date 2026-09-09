@@ -19,12 +19,13 @@
 #include "motor.h"
 #include "turn.h"
 #include "oled.h"
+#include "switch.h"
 
 #endif
 
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
 #define GROUP_NO     "01"       // 组号（上电/重置后显示）
-#define SHOW_DATE    "2026.9"   // 显示日期
+#define SHOW_DATE    "2026.9.9" // 显示日期
 #define PINK_R  255   // 转向灯颜色：粉色（R）
 #define PINK_G  105   // 转向灯颜色：粉色（G）
 #define PINK_B  180   // 转向灯颜色：粉色（B）
@@ -95,12 +96,13 @@ int main(void)//方向盘ecu
 		
 		uint8_t rx_buffer[32];       // 接收缓冲区（足够大）
 		volatile uint8_t data_len;
+		uint8_t last_dnr = 0xFF;
+		uint8_t last_left_right = 0xFF;
 		
 		OLED_Init();
-		
-		/* ===== 上电/重置后显示组号 + 日期（PPT 评分注要求） ===== */
-		OLED_ShowString2x(1, 4, GROUP_NO);   // 上半屏 2x 大号显示组号
-		OLED_ShowString(4, 6, SHOW_DATE);    // 第 4 行显示日期
+		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
+		OLED_ShowString2x(1, 1, GROUP_NO);
+		OLED_ShowString(1, 6, SHOW_DATE);
 		
 		WS2812_Init();
 		
@@ -120,8 +122,43 @@ int main(void)//方向盘ecu
 			/*********************************接收数据处理**************************************/
 			/*数据组成：（方向盘转角、踏板标志）（方向盘转角量1）（方向盘转角量2）（油门踏板量）（前进后退空挡标志）（前进后退空挡信号）（左右转向灯标志）（左右转灯信号）*/
 			/*标志位用来二次验证，以免数据错用*/
-			if(!(rx_buffer[0]==0x01&&rx_buffer[4]==0x02&&rx_buffer[6]==0x03))
+			if (data_len < TX_DATA_LEN ||
+				!(rx_buffer[0] == 0x01 && rx_buffer[4] == 0x02 && rx_buffer[6] == 0x03))
 				continue;
+
+			if (rx_buffer[5] != last_dnr)
+			{
+				last_dnr = rx_buffer[5];
+				switch (last_dnr)
+				{
+					case DNR_FORWARD:
+						OLED_ShowString(3, 4, "D  ");
+						break;
+					case DNR_REVERSE:
+						OLED_ShowString(3, 4, "R  ");
+						break;
+					default:
+						OLED_ShowString(3, 4, "N  ");
+						break;
+				}
+			}
+
+			if (rx_buffer[7] != last_left_right)
+			{
+				last_left_right = rx_buffer[7];
+				switch (last_left_right)
+				{
+					case LIGHT_LEFT:
+						OLED_ShowString(3, 9, "LEFT ");
+						break;
+					case LIGHT_RIGHT:
+						OLED_ShowString(3, 9, "RIGHT");
+						break;
+					default:
+						OLED_ShowString(3, 9, "OFF  ");
+						break;
+				}
+			}
 			
 			/* ===== 灯光：转向灯（粉色，1s 闪烁）/ 倒挡灯（红色） =====
 			 * 闪烁计时复用 SysTick 1s 标志：每 1s 调用一次、切换一次亮灭 */
