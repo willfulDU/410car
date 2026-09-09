@@ -25,7 +25,7 @@
 
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
 #define GROUP_NO     "01"       // 组号（上电/重置后显示）
-#define SHOW_DATE    "2026.9"   // 显示日期
+#define SHOW_DATE    "2026.9.9" // 显示日期
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -101,14 +101,9 @@ int main(void)//方向盘ecu
 		uint8_t direction;
 		
 		OLED_Init();
-		OLED_ShowString(1, 1, "GEAR:");
-		OLED_ShowString(2, 1, "TURN:");
-		OLED_ShowString(1, 7, "N  ");
-		OLED_ShowString(2, 7, "OFF  ");
-		
-		/* ===== 上电/重置后显示组号 + 日期（PPT 评分注要求） ===== */
-		OLED_ShowString2x(1, 4, GROUP_NO);   // 上半屏 2x 大号显示组号
-		OLED_ShowString(4, 6, SHOW_DATE);    // 第 4 行显示日期
+		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
+		OLED_ShowString2x(1, 1, GROUP_NO);
+		OLED_ShowString(1, 6, SHOW_DATE);
 		
 		WS2812_Init();
 		
@@ -145,13 +140,13 @@ int main(void)//方向盘ecu
 				switch (last_dnr)
 				{
 					case DNR_FORWARD:
-						OLED_ShowString(1, 7, "D  ");
+						OLED_ShowString(3, 4, "D  ");
 						break;
 					case DNR_REVERSE:
-						OLED_ShowString(1, 7, "R  ");
+						OLED_ShowString(3, 4, "R  ");
 						break;
 					default:
-						OLED_ShowString(1, 7, "N  ");
+						OLED_ShowString(3, 4, "N  ");
 						break;
 				}
 			}
@@ -162,13 +157,13 @@ int main(void)//方向盘ecu
 				switch (last_left_right)
 				{
 					case LIGHT_LEFT:
-						OLED_ShowString(2, 7, "LEFT ");
+						OLED_ShowString(3, 9, "LEFT ");
 						break;
 					case LIGHT_RIGHT:
-						OLED_ShowString(2, 7, "RIGHT");
+						OLED_ShowString(3, 9, "RIGHT");
 						break;
 					default:
-						OLED_ShowString(2, 7, "OFF  ");
+						OLED_ShowString(3, 9, "OFF  ");
 						break;
 				}
 			}
