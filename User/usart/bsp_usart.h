@@ -105,5 +105,8 @@
 
 
 void USART_Config(void);
+/* Main ECU only. Pop returns 0xFF on receive loss/corruption. */
+void USART_DistanceRx_Enable(void);
+uint8_t USART_DistanceRx_Pop(uint8_t *data, uint32_t *received_ms);
 
 #endif /* __USART_H */

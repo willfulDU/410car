@@ -16,6 +16,11 @@
 
 
 #include "./usart/bsp_usart.h"
+#include "main.h"
+
+#if defined(_MAIN_ECU_) && !defined(__RF24L01_TX_TEST__)
+#include "SysTick/bsp_SysTick.h"
+#endif
 
 
  /**
@@ -87,3 +92,116 @@ int fgetc(FILE *f)
 		return (int)USART_ReceiveData(DEBUG_USARTx);
 }
 
+
+#if defined(_MAIN_ECU_) && !defined(__RF24L01_TX_TEST__)
+
+#define DISTANCE_RX_BUFFER_SIZE 128U
+
+/* Each byte retains its arrival time; delayed consumption is not fresh data. */
+typedef struct
+{
+    uint32_t received_ms;
+    uint8_t data;
+} DistanceRxByte;
+
+static volatile DistanceRxByte s_distance_rx[DISTANCE_RX_BUFFER_SIZE];
+static volatile uint16_t s_distance_head;
+static volatile uint16_t s_distance_tail;
+static volatile uint8_t s_distance_rx_error;
+
+void USART_DistanceRx_Enable(void)
+{
+    uint32_t irq_mask = __get_PRIMASK();
+    volatile uint32_t discarded;
+
+    __disable_irq();
+    s_distance_head = 0U;
+    s_distance_tail = 0U;
+    s_distance_rx_error = 0U;
+    /* Reading SR followed by DR clears RXNE and any pre-existing errors. */
+    discarded = DEBUG_USARTx->SR;
+    discarded = DEBUG_USARTx->DR;
+    (void)discarded;
+    NVIC_ClearPendingIRQ(DEBUG_USART_IRQ);
+    NVIC_SetPriority(DEBUG_USART_IRQ, 1U);
+    NVIC_EnableIRQ(DEBUG_USART_IRQ);
+    USART_ITConfig(DEBUG_USARTx, USART_IT_RXNE, ENABLE);
+    if (irq_mask == 0U)
+    {
+        __enable_irq();
+    }
+}
+
+uint8_t USART_DistanceRx_Pop(uint8_t *data, uint32_t *received_ms)
+{
+    uint32_t irq_mask;
+    uint8_t available = 0U;
+    uint16_t tail;
+
+    if ((data == 0) || (received_ms == 0))
+    {
+        return 0U;
+    }
+
+    irq_mask = __get_PRIMASK();
+    __disable_irq();
+    if (s_distance_rx_error != 0U)
+    {
+        /* Drop the entire queue, never join digits across a lost byte. */
+        s_distance_tail = s_distance_head;
+        s_distance_rx_error = 0U;
+        *data = 0xFFU;
+        *received_ms = SysTick_GetTick();
+        available = 1U;
+    }
+    else if (s_distance_tail != s_distance_head)
+    {
+        tail = s_distance_tail;
+        *data = s_distance_rx[tail].data;
+        *received_ms = s_distance_rx[tail].received_ms;
+        s_distance_tail = (uint16_t)((tail + 1U) % DISTANCE_RX_BUFFER_SIZE);
+        available = 1U;
+    }
+    if (irq_mask == 0U)
+    {
+        __enable_irq();
+    }
+    return available;
+}
+
+void DEBUG_USART_IRQHandler(void)
+{
+    uint32_t status = DEBUG_USARTx->SR;
+    uint8_t data;
+    uint16_t next_head;
+
+    if ((status & (USART_SR_RXNE | USART_SR_ORE | USART_SR_FE |
+                   USART_SR_NE | USART_SR_PE)) == 0U)
+    {
+        return;
+    }
+
+    /* Also clears errors after WS2812's interrupt-masked SPI transfers. */
+    data = (uint8_t)DEBUG_USARTx->DR;
+    if ((status & (USART_SR_ORE | USART_SR_FE | USART_SR_NE | USART_SR_PE)) != 0U)
+    {
+        s_distance_rx_error = 1U;
+        return;
+    }
+    if (s_distance_rx_error != 0U)
+    {
+        return;
+    }
+
+    next_head = (uint16_t)((s_distance_head + 1U) % DISTANCE_RX_BUFFER_SIZE);
+    if (next_head == s_distance_tail)
+    {
+        s_distance_rx_error = 1U;
+        return;
+    }
+    s_distance_rx[s_distance_head].data = data;
+    s_distance_rx[s_distance_head].received_ms = SysTick_GetTick();
+    s_distance_head = next_head;
+}
+
+#endif

@@ -14,6 +14,7 @@ Project/Listing/
 
 # Host-side differential-steering test output
 /tests/differential_steering/build/
+/tests/distance_display/build/
 
 # Per-user Keil settings
 *.uvguix.*
