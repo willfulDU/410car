@@ -137,6 +137,7 @@ int main(void)//方向盘ecu
 			{
 				Motor_SetCW(0);
 				continue;
+			}
 
 			if (rx_buffer[5] != last_dnr)
 			{
@@ -170,7 +171,6 @@ int main(void)//方向盘ecu
 						OLED_ShowString(3, 9, "OFF  ");
 						break;
 				}
-			}
 			}
 
 			wheel_value = ((uint16_t)rx_buffer[1] << 8) | rx_buffer[2];
