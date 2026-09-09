@@ -103,9 +103,9 @@ int main(void)//方向盘ecu
 		Motor_Init();
 		
 		Turn_SetDuty(50);    // 开机归中
-		Motor1_SetDuty(50);
-		Motor2_SetDuty(50);
-		//Motor_SetCW(0);
+		Motor_SetCW(0);
+		Motor1_SetDuty(0);
+		Motor2_SetDuty(0);
 		
 		
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频

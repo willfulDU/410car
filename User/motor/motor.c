@@ -81,10 +81,10 @@ void Motor_Init(void)
     TIM_ARRPreloadConfig(TIM1, ENABLE);
 
     /* 初始占空比 0% */
-    TIM_SetCompare1(TIM1, 0);
-    TIM_SetCompare4(TIM1, 0);
-    motor1_ccr = 0;
-    motor2_ccr = 0;
+    TIM_SetCompare1(TIM1, MOTOR_PWM_ARR + 1);
+    TIM_SetCompare4(TIM1, MOTOR_PWM_ARR + 1);
+    motor1_ccr = MOTOR_PWM_ARR + 1;
+    motor2_ccr = MOTOR_PWM_ARR + 1;
 
     /* 高级定时器使能输出 */
     TIM_CtrlPWMOutputs(TIM1, ENABLE);
@@ -99,7 +99,7 @@ void Motor_Init(void)
 void Motor2_SetDuty(uint8_t duty)
 {
     if (duty > 100) duty = 100;
-    motor2_ccr = ((uint32_t)duty * (MOTOR_PWM_ARR + 1)) / 100;
+    motor2_ccr = ((uint32_t)(100 - duty) * (MOTOR_PWM_ARR + 1)) / 100;
     TIM_SetCompare4(TIM1, motor2_ccr);
 }
 
@@ -111,7 +111,7 @@ void Motor2_SetDuty(uint8_t duty)
 void Motor1_SetDuty(uint8_t duty)
 {
     if (duty > 100) duty = 100;
-    motor1_ccr = ((uint32_t)duty * (MOTOR_PWM_ARR + 1)) / 100;
+    motor1_ccr = ((uint32_t)(100 - duty) * (MOTOR_PWM_ARR + 1)) / 100;
     TIM_SetCompare1(TIM1, motor1_ccr);
 }
 
