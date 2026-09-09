@@ -25,7 +25,7 @@
 #define DYNAMIC_PACKET      1 		//1:动态数据包, 0:固定
 #define FIXED_PACKET_LEN    32		//包长度
 #define REPEAT_CNT          15		//重复次数
-#define INIT_ADDR           0x01,0x01,0x01,0x01,0x01  //在此处修改通讯地址
+#define INIT_ADDR           0x02,0x02,0x02,0x02,0x02  //在此处修改通讯地址
 
 
 /** RF24L01硬件接口定义 */
