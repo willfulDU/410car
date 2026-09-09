@@ -30,7 +30,7 @@ uint8_t g_UartRxBuffer[100] = {0};
 /* 发送端：发送数据 */
 #ifdef __RF24L01_TX_TEST__
 
-int main(void)
+int main(void)//方向盘ecu
 {
     SystemInit();
     USART_Config();
@@ -75,7 +75,7 @@ int main(void)
 
 	#ifdef _MAIN_ECU_
 
-	int main(void)
+	int main(void)//车端
 	{
 		SystemInit();
 		SysTick_Init();
@@ -124,7 +124,7 @@ int main(void)
 	}
 	
 	#else
-	int main()
+	int main()//测距ecu
 	{
 		SystemInit();
 		SysTick_Init();
