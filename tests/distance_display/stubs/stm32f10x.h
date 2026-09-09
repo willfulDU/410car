@@ -8,6 +8,13 @@ extern USART_TypeDef test_usart;
 #define RCC_APB2Periph_USART1 1
 #define RCC_APB2Periph_GPIOA 2
 #define GPIOA 0
+#define GPIOB 1
+#define RCC_APB2Periph_GPIOB 4
+#define GPIO_Pin_6 64
+#define GPIO_Pin_7 128
+#define GPIO_Mode_Out_OD 3
+#define Bit_SET 1
+#define Bit_RESET 0
 #define GPIO_Pin_9 9
 #define GPIO_Pin_10 10
 #define GPIO_Mode_AF_PP 1
@@ -34,6 +41,7 @@ typedef struct { uint32_t USART_BaudRate, USART_WordLength, USART_StopBits, USAR
     USART_HardwareFlowControl, USART_Mode; } USART_InitTypeDef;
 void RCC_APB2PeriphClockCmd(int clock, int enabled);
 void GPIO_Init(int port, GPIO_InitTypeDef *init);
+void GPIO_WriteBit(int port, uint16_t pin, int value);
 void USART_Init(USART_TypeDef *usart, USART_InitTypeDef *init);
 void USART_Cmd(USART_TypeDef *usart, int enabled);
 void USART_SendData(USART_TypeDef *usart, uint16_t data);

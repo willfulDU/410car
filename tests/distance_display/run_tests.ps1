@@ -24,4 +24,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Distance tests did not compile.' }
     & '.\distance_display_tests.exe'
     if ($LASTEXITCODE -ne 0) { throw 'Distance behavior tests failed.' }
+    # Compile the real static main-loop helper in isolation to exercise a busy producer.
+    $mainText = Get-Content -LiteralPath "$repo\User\main.c" -Raw -Encoding utf8
+    $begin = $mainText.IndexOf('#include "distance_display.h"')
+    $end = $mainText.IndexOf('#define WHEEL_SPEED_DISPLAY_PERIOD_MS', $begin)
+    if ($begin -lt 0 -or $end -le $begin) { throw 'Main ECU distance helper boundaries not found.' }
+    [IO.File]::WriteAllText((Join-Path $build 'main_distance_task.inc'), $mainText.Substring($begin, $end - $begin))
+    & cl.exe /nologo /W4 /WX /std:c11 /utf-8 "/I$build" "/I$repo\User\distance_display" `
+        $source "$PSScriptRoot\test_main_distance_task.c" /Fe:main_distance_task_tests.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Main distance task tests did not compile.' }
+    & '.\main_distance_task_tests.exe'
+    if ($LASTEXITCODE -ne 0) { throw 'Main distance task budget failed.' }
+    & cl.exe /nologo /W4 /WX /std:c11 /utf-8 "/I$PSScriptRoot\stubs" "/I$repo\User" `
+        "$repo\User\oled\oled.c" "$PSScriptRoot\test_oled_bus.c" /Fe:oled_bus_tests.exe
+    if ($LASTEXITCODE -ne 0) { throw 'OLED bus tests did not compile.' }
+    & '.\oled_bus_tests.exe'
+    if ($LASTEXITCODE -ne 0) { throw 'OLED bus behavior tests failed.' }
 } finally { Pop-Location }

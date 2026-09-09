@@ -180,10 +180,43 @@ void OLED_ShowChar(uint8_t Line, uint8_t Column, char Char)
 /* 普通字符串显示 */
 void OLED_ShowString(uint8_t Line, uint8_t Column, char *String)
 {
-    uint8_t i;
-    for(i = 0; String[i] != '\0'; i++)
+    uint8_t length = 0U;
+    uint8_t half;
+    uint8_t character;
+    uint8_t pixel;
+
+    if ((String == 0) || (Line < 1U) || (Line > 4U) ||
+        (Column < 1U) || (Column > 16U))
     {
-        OLED_ShowChar(Line, Column + i, String[i]);
+        return;
+    }
+    while ((length < (uint8_t)(17U - Column)) && (String[length] != '\0'))
+    {
+        length++;
+    }
+    if (length == 0U)
+    {
+        return;
+    }
+
+    /* Two page bursts instead of 22 I2C transactions per character.
+       Interrupts remain enabled throughout, including distance reception. */
+    for (half = 0U; half < 2U; half++)
+    {
+        OLED_SetCursor((uint8_t)((Line - 1U) * 2U + half),
+                       (uint8_t)((Column - 1U) * 8U));
+        OLED_I2C_Start();
+        OLED_I2C_SendByte(0x78);
+        OLED_I2C_SendByte(0x40);
+        for (character = 0U; character < length; character++)
+        {
+            const uint8_t *glyph = &OLED_F8x16[Get_FontIndex(String[character])][half * 8U];
+            for (pixel = 0U; pixel < 8U; pixel++)
+            {
+                OLED_I2C_SendByte(glyph[pixel]);
+            }
+        }
+        OLED_I2C_Stop();
     }
 }
 

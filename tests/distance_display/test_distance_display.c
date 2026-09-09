@@ -64,9 +64,9 @@ int main(void)
     uint32_t at;
     unsigned i;
     DistanceDisplay_Init(&state);
-    CHECK(shows(&state, 0U, "D:-----mm"));
+    CHECK(shows(&state, 0U, "D:NO RX  "));
     feed(&state, "56\n", 1U); /* attachment in the middle of a line */
-    CHECK(shows(&state, 1U, "D:-----mm"));
+    CHECK(shows(&state, 1U, "D:WAIT   "));
     feed(&state, "356\n", 10U);
     CHECK(shows(&state, 10U, "D:  356mm"));
     feed(&state, "42\r\n", 20U);
@@ -81,27 +81,27 @@ int main(void)
     feed(&state, "65536\n123456\n000007\n-123\n12x34\n 55\n", 60U);
     CHECK(shows(&state, 60U, "D:  789mm"));
     CHECK(shows(&state, 544U, "D:  789mm"));
-    CHECK(shows(&state, 545U, "D:-----mm"));
+    CHECK(shows(&state, 545U, "D:FORMAT "));
     feed(&state, "\n789\n", 600U);
     CHECK(shows(&state, 600U, "D:  789mm")); /* same value must recover */
     feed(&state, "0\n", 610U);
-    CHECK(shows(&state, 610U, "D:-----mm"));
+    CHECK(shows(&state, 610U, "D:ZERO   "));
     feed(&state, "00001\n", 620U);
     CHECK(shows(&state, 620U, "D:    1mm"));
     feed(&state, "12", 630U);
     feed(&state, "3\n", 1130U); /* never join digits across a disconnect */
-    CHECK(shows(&state, 1130U, "D:-----mm"));
+    CHECK(shows(&state, 1130U, "D:FORMAT "));
     feed(&state, "300\n", 1140U);
     CHECK(shows(&state, 1140U, "D:  300mm"));
     DistanceDisplay_Receive(&state, 0xFFU, 1150U);
     feed(&state, "45\n", 1150U);
-    CHECK(shows(&state, 1150U, "D:-----mm"));
+    CHECK(shows(&state, 1150U, "D:RX ERR "));
     feed(&state, "123\n", 1160U);
     CHECK(shows(&state, 1160U, "D:  123mm"));
     DistanceDisplay_Init(&state);
     feed(&state, "\n250\n", UINT32_MAX - 100U);
     CHECK(shows(&state, 398U, "D:  250mm"));
-    CHECK(shows(&state, 399U, "D:-----mm"));
+    CHECK(shows(&state, 399U, "D:STALE  "));
 
     USART_Config();
     USART_DistanceRx_Enable();
@@ -136,13 +136,36 @@ int main(void)
     irq_byte('\n', 1100U, USART_SR_RXNE);
     tick = 1700U;
     drain(&state);
-    CHECK(shows(&state, 1700U, "D:-----mm")); /* dequeue does not refresh age */
+    CHECK(shows(&state, 1700U, "D:STALE  ")); /* dequeue does not refresh age */
     irq_byte('\n', 1800U, USART_SR_RXNE);
     irq_byte('4', 1800U, USART_SR_RXNE);
     irq_byte('2', 1800U, USART_SR_RXNE);
     irq_byte('\n', 1800U, USART_SR_RXNE);
     drain(&state);
     CHECK(shows(&state, 1800U, "D:   42mm"));
+    /* A clean line boundary remains valid across a slow sampling interval. */
+    DistanceDisplay_Init(&state);
+    feed(&state, "\n356\n", 10U);
+    feed(&state, "420\n", 1010U);
+    CHECK(shows(&state, 1010U, "D:  420mm"));
+    feed(&state, "500\n", 2010U);
+    CHECK(shows(&state, 2010U, "D:  500mm"));
+    CHECK(shows(&state, 2510U, "D:STALE  "));
+    /* Unknown text is diagnosed; numbers are never harvested from debug text. */
+    DistanceDisplay_Init(&state);
+    feed(&state, "\nDistance: 123 mm\n", 1U);
+    CHECK(shows(&state, 1U, "D:FORMAT "));
+    feed(&state, "123", 2U);
+    CHECK(shows(&state, 2U, "D:WAIT   "));
+    feed(&state, "\n", 3U);
+    CHECK(shows(&state, 3U, "D:  123mm"));
+    feed(&state, "\n0\n", 1000U);
+    CHECK(shows(&state, 1000U, "D:ZERO   "));
+    feed(&state, "\n", 1400U);
+    CHECK(shows(&state, 1500U, "D:STALE  ")); /* empty lines do not renew a zero sample */
+    feed(&state, "123\n", 1510U);
+    feed(&state, "\n", 1910U);
+    CHECK(shows(&state, 2010U, "D:STALE  ")); /* nor a previous valid reading */
     puts("PASS: parser, display, freshness, FIFO and UART error behavior");
     printf("%u checks passed\n", checks);
     return 0;

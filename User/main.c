@@ -89,19 +89,27 @@ int main(void)//方向盘ecu
 
 	#include "distance_display.h"
 
+	#define DISTANCE_RX_BYTES_PER_LOOP 32U
+
 	static DistanceDisplay s_distance_display;
 
 	static void DistanceDisplay_Update(void)
 	{
 		static uint32_t last_update_ms = 0U;
-		static char previous[DISTANCE_DISPLAY_TEXT_SIZE] = "D:-----mm";
+		static char previous[DISTANCE_DISPLAY_TEXT_SIZE] = "D:NO RX  ";
 		char text[DISTANCE_DISPLAY_TEXT_SIZE];
 		uint8_t data;
+		uint8_t count;
 		uint32_t received_ms;
 		uint32_t now;
 
-		while (USART_DistanceRx_Pop(&data, &received_ms) != 0U)
+		/* Always yield to the next radio poll, even with a busy/noisy UART. */
+		for (count = 0U; count < DISTANCE_RX_BYTES_PER_LOOP; count++)
 		{
+			if (USART_DistanceRx_Pop(&data, &received_ms) == 0U)
+			{
+				break;
+			}
 			DistanceDisplay_Receive(&s_distance_display, data, received_ms);
 		}
 
@@ -187,7 +195,8 @@ int main(void)//方向盘ecu
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
 		OLED_ShowString2x(1, 1, GROUP_NO);
 		OLED_ShowString(1, 6, SHOW_DATE);
-		OLED_ShowString(2, 6, "D:-----mm");
+		OLED_ShowString(1, 15, "D3");
+		OLED_ShowString(2, 6, "D:NO RX  ");
 		WS2812_Init();
 		
 		Turn_Init();
@@ -203,11 +212,8 @@ int main(void)//方向盘ecu
 		
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
-			/* Consume distance data even when the steering radio is offline. */
-			DistanceDisplay_Update();
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 			WheelSpeed_Update();
-			WheelSpeed_DisplayUpdate();
 			now = SysTick_GetTick();
 			if (data_len != 0U)
 			{
@@ -237,6 +243,9 @@ int main(void)//方向盘ecu
 					Motor_SetCW(DNR_NEUTRAL);
 					active_direction = DNR_NEUTRAL;
 				}
+				/* Display tasks follow the stop command, including radio loss. */
+				DistanceDisplay_Update();
+				WheelSpeed_DisplayUpdate();
 				continue;
 			}
 			
@@ -407,6 +416,10 @@ int main(void)//方向盘ecu
 				WS2812_Show();                                // 每次刷新发送一次
 			}
 			
+			/* Background display work must follow the current control output. */
+			DistanceDisplay_Update();
+			WheelSpeed_DisplayUpdate();
+
 			/*printf("wheel:%2d  pedal:%3d  DNR:%c  light:%s\n" ,
 					map_wheel(rx_buffer[1]*256+rx_buffer[2]),
 					map_pedal(rx_buffer[3]), 
