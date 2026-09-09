@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F10X_MD, USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Libraries\CMSIS;..\..\User;..\..\Libraries\FWlib\inc;..\..\User\usart;..\..\User\can;..\..\User\ws2812b;..\..\User\pedal;..\..\User\vl53l0\core\inc;..\..\User\vl53l0\demo;..\..\User\vl53l0\platform\inc;..\..\User\motor;..\..\User\turn;..\..\User\oled;..\..\User\SysTick;..\..\User\si24r1\drv_mcu\inc;..\..\User\si24r1\drv_periph\inc;..\..\User\wheel;..\..\User\switch</IncludePath>
+              <IncludePath>..\..\Libraries\CMSIS;..\..\User;..\..\Libraries\FWlib\inc;..\..\User\usart;..\..\User\can;..\..\User\ws2812b;..\..\User\pedal;..\..\User\vl53l0\core\inc;..\..\User\vl53l0\demo;..\..\User\vl53l0\platform\inc;..\..\User\motor;..\..\User\turn;..\..\User\oled;..\..\User\SysTick;..\..\User\si24r1\drv_mcu\inc;..\..\User\si24r1\drv_periph\inc;..\..\User\wheel;..\..\User\wheel_speed;..\..\User\switch</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -649,6 +649,16 @@
               <FileName>wheel.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\User\wheel\wheel.c</FilePath>
+            </File>
+            <File>
+              <FileName>wheel_speed.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\User\wheel_speed\wheel_speed.c</FilePath>
+            </File>
+            <File>
+              <FileName>wheel_speed_calc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\User\wheel_speed\wheel_speed_calc.c</FilePath>
             </File>
             <File>
               <FileName>switch.c</FileName>
