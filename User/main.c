@@ -99,11 +99,16 @@ int main(void)//方向盘ecu
 		uint8_t last_dnr = 0xFF;
 		uint8_t last_left_right = 0xFF;
 		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
+		static uint8_t  uart_state = 0;        // 串口帧解析状态机
+		static uint8_t  dist_hi = 0, dist_lo = 0;
+		static uint16_t distance_mm = 0;       // 解析出的障碍距离（mm）
+		static uint16_t last_distance = 0xFFFF;// 屏幕显示缓存
 		
 		OLED_Init();
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
 		OLED_ShowString2x(1, 1, GROUP_NO);
 		OLED_ShowString(1, 6, SHOW_DATE);
+		OLED_ShowString(4, 1, "DIS:");   // 第 4 行：障碍距离标签
 		
 		WS2812_Init();
 		
@@ -119,6 +124,48 @@ int main(void)//方向盘ecu
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
+
+			/* ===== 串口接收测距 ECU 的距离帧：0xAA 0x55 H L 校验 ===== */
+			while (g_uart_rx_tail != g_uart_rx_head)
+			{
+				uint8_t b = g_uart_rx_buf[g_uart_rx_tail];
+				g_uart_rx_tail = (uint8_t)((g_uart_rx_tail + 1) % UART_RX_BUF_SIZE);
+
+				switch (uart_state)
+				{
+					case 0:                        // 等帧头 0xAA
+						if (b == 0xAA) uart_state = 1;
+						break;
+					case 1:                        // 等帧头 0x55
+						if (b == 0x55) uart_state = 2;
+						else if (b != 0xAA) uart_state = 0;
+						break;
+					case 2:                        // 距离高字节
+						dist_hi = b;
+						uart_state = 3;
+						break;
+					case 3:                        // 距离低字节
+						dist_lo = b;
+						uart_state = 4;
+						break;
+					case 4:                        // 校验
+						if (b == (uint8_t)(dist_hi + dist_lo))
+							distance_mm = (uint16_t)(((uint16_t)dist_hi << 8) | dist_lo);
+						uart_state = 0;
+						break;
+					default:
+						uart_state = 0;
+						break;
+				}
+			}
+
+			/* 距离变化时刷新屏幕（第 4 行） */
+			if (distance_mm != last_distance)
+			{
+				last_distance = distance_mm;
+				OLED_ShowInt(4, 5, distance_mm);
+			}
+
 			
 			/*********************************接收数据处理**************************************/
 			/*数据组成：（方向盘转角、踏板标志）（方向盘转角量1）（方向盘转角量2）（油门踏板量）（前进后退空挡标志）（前进后退空挡信号）（左右转向灯标志）（左右转灯信号）*/
@@ -215,11 +262,34 @@ int main(void)//方向盘ecu
 		SystemInit();
 		SysTick_Init();
 		USART_Config();
-		uint16_t distance=0;
+
+		uint16_t raw = 0, distance = 0;
+		uint16_t hist[4] = {0, 0, 0, 0};    // 滑动平均滤波窗口
+		uint8_t  idx = 0, i;
+		uint8_t  frame[5];                   // 串口帧：0xAA 0x55 + 高/低 + 校验
+
 		while(1)
 		{
-			distance=Distance_Update(1);
-			printf("%d\n",distance);
+			raw = Distance_Update(1);          // 单次测距（约 33ms）
+
+			/* 滑动平均滤波（最近 4 次），平滑跳变 */
+			hist[idx] = raw;
+			idx = (uint8_t)((idx + 1) & 0x03);
+			distance = (uint16_t)((hist[0] + hist[1] + hist[2] + hist[3]) / 4);
+
+			/* 组装帧：帧头 0xAA 0x55 + 距离高/低 + 校验和 */
+			frame[0] = 0xAA;
+			frame[1] = 0x55;
+			frame[2] = (uint8_t)(distance >> 8);
+			frame[3] = (uint8_t)(distance & 0xFF);
+			frame[4] = (uint8_t)(frame[2] + frame[3]);
+
+			/* 发送帧 */
+			for (i = 0; i < 5; i++)
+			{
+				USART_SendData(USART1, frame[i]);
+				while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);
+			}
 		}
 	}
 	#endif

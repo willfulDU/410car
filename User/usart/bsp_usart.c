@@ -17,6 +17,12 @@
 
 #include "./usart/bsp_usart.h"
 
+/* 串口接收环形缓冲区定义 */
+volatile uint8_t g_uart_rx_buf[UART_RX_BUF_SIZE];
+volatile uint8_t g_uart_rx_head = 0;
+volatile uint8_t g_uart_rx_tail = 0;
+
+
 
  /**
   * @brief  USART GPIO 配置,工作参数配置
@@ -62,7 +68,16 @@ void USART_Config(void)
 	USART_Init(DEBUG_USARTx, &USART_InitStructure);
 
 	// 使能串口
-	USART_Cmd(DEBUG_USARTx, ENABLE);	    
+	USART_Cmd(DEBUG_USARTx, ENABLE);
+	
+	/* 使能接收中断：主 ECU 用 USART1 接收测距 ECU 的距离帧 */
+	USART_ITConfig(DEBUG_USARTx, USART_IT_RXNE, ENABLE);
+	NVIC_InitTypeDef NVIC_InitStructure;
+	NVIC_InitStructure.NVIC_IRQChannel = DEBUG_USART_IRQ;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
 }
 
 

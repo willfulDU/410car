@@ -106,4 +106,11 @@
 
 void USART_Config(void);
 
+/* 串口接收环形缓冲区（主 ECU 接收测距 ECU 的距离帧） */
+#define UART_RX_BUF_SIZE  64
+extern volatile uint8_t g_uart_rx_buf[UART_RX_BUF_SIZE];
+extern volatile uint8_t g_uart_rx_head;
+extern volatile uint8_t g_uart_rx_tail;
+
+
 #endif /* __USART_H */

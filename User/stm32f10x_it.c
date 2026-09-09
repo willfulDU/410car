@@ -27,6 +27,7 @@
 #include "stm32f10x_it.h"
 #include "can/bsp_can.h"
 #include "SysTick/bsp_SysTick.h"
+#include "usart/bsp_usart.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
@@ -140,6 +141,16 @@ void SysTick_Handler(void)
 {
 	TimingDelay_Decrement();   /* 递减 TimingDelay，供 Delay_us/Delay_ms 使用 */
 	SysTick_Counter();         /* 1s 时基：累计并置 1s 标志位 */
+}
+/* 串口接收中断：主 ECU 接收测距 ECU 距离帧，字节存入环形缓冲区 */
+void USART1_IRQHandler(void)
+{
+	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
+	{
+		uint8_t data = (uint8_t)USART_ReceiveData(USART1);
+		g_uart_rx_buf[g_uart_rx_head] = data;
+		g_uart_rx_head = (uint8_t)((g_uart_rx_head + 1) % UART_RX_BUF_SIZE);
+	}
 }
 
 /*
