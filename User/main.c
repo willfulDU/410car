@@ -46,6 +46,7 @@ int main(void)//方向盘ecu
 	
 	Wheel_ADC_Init();
 	Pedal_ADC_Init();
+	Switch_Init();
 	
     while (1)
     {
@@ -90,6 +91,9 @@ int main(void)//方向盘ecu
 		
 		uint8_t rx_buffer[32];       // 接收缓冲区（足够大）
 		volatile uint8_t data_len;
+		uint16_t wheel_value;
+		uint8_t motor_duty;
+		uint8_t direction;
 		
 		OLED_Init();
 		
@@ -107,12 +111,36 @@ int main(void)//方向盘ecu
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
+			if (data_len != TX_DATA_LEN)
+			{
+				Motor_SetCW(0);
+				continue;
+			}
 			
 			/*********************************接收数据处理**************************************/
 			/*数据组成：（方向盘转角、踏板标志）（方向盘转角量1）（方向盘转角量2）（油门踏板量）（前进后退空挡标志）（前进后退空挡信号）（左右转向灯标志）（左右转灯信号）*/
 			/*标志位用来二次验证，以免数据错用*/
 			if(!(rx_buffer[0]==0x01&&rx_buffer[4]==0x02&&rx_buffer[6]==0x03))
+			{
+				Motor_SetCW(0);
 				continue;
+			}
+
+			wheel_value = ((uint16_t)rx_buffer[1] << 8) | rx_buffer[2];
+			Turn_SetDuty(map_wheel(wheel_value));
+
+			direction = rx_buffer[5];
+			if ((direction == 1) || (direction == 2))
+			{
+				motor_duty = map_pedal(rx_buffer[3]);
+				Motor_SetCW(direction);
+				Motor1_SetDuty(motor_duty);
+				Motor2_SetDuty(motor_duty);
+			}
+			else
+			{
+				Motor_SetCW(0);
+			}
 			
 			/*printf("wheel:%2d  pedal:%3d  DNR:%c  light:%s\n" ,
 					map_wheel(rx_buffer[1]*256+rx_buffer[2]),

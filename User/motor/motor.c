@@ -142,7 +142,28 @@ void Motor_SetPB5(uint8_t level)
  **********************************************************/
 void Motor_SetCW(uint8_t status)
 {
-    
+    /* Disable PWM before changing the H-bridge direction inputs. */
+    Motor1_SetDuty(0);
+    Motor2_SetDuty(0);
+
+    switch (status)
+    {
+        case 1: /* Forward */
+            Motor_SetPB4(1);
+            Motor_SetPB5(0);
+            break;
+
+        case 2: /* Reverse */
+            Motor_SetPB4(0);
+            Motor_SetPB5(1);
+            break;
+
+        case 0: /* Neutral / stop */
+        default:
+            Motor_SetPB4(0);
+            Motor_SetPB5(0);
+            break;
+    }
 }
 
 /**********************************************************

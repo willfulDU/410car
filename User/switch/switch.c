@@ -51,12 +51,12 @@ DNR_State Get_DNR(void)
     /* PB5高电平，PB7低电平：R */
     if ((pb5_state == Bit_SET) && (pb7_state == Bit_RESET))
     {
-        return DNR_FORWARD;
+        return DNR_REVERSE;
     }
     /* PB5低电平，PB7高电平：D */
     else if ((pb5_state == Bit_RESET) && (pb7_state == Bit_SET))
     {
-        return DNR_REVERSE;
+        return DNR_FORWARD;
     }
     /* 其他情况：空档 */
     else
