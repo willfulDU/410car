@@ -159,46 +159,6 @@ int main(void)//方向盘ecu
 		
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
-			/* ===== 测距解析（放在无线接收之前，避免无线阻塞拖累测距） ===== */
-			while (g_uart_rx_tail != g_uart_rx_head)
-			{
-				char c = (char)g_uart_rx_buf[g_uart_rx_tail];
-				g_uart_rx_tail = (uint16_t)((g_uart_rx_tail + 1) % UART_RX_BUF_SIZE);
-				if (c == '\r' || c == '\n')
-				{
-					if (line_len >= 3 && line[0] == 'D' && line[1] == ':')
-					{
-						uint16_t val = 0;
-						for (uart_i = 2; uart_i < line_len; uart_i++)
-							if (line[uart_i] >= '0' && line[uart_i] <= '9')
-								val = val * 10 + (uint16_t)(line[uart_i] - '0');
-						distance_mm = val;
-						s_last_received_ms = SysTick_GetTick();
-					}
-					line_len = 0;
-				}
-				else if (c >= ' ' && line_len < 15)
-				{
-					line[line_len++] = c;
-				}
-			}
-
-			/* 距离显示（含 1s 超时失联检测） */
-			{
-				uint32_t now_ms = SysTick_GetTick();
-				uint16_t show_val = ((uint32_t)(now_ms - s_last_received_ms) > 1000U)
-				                    ? 0xFFFF : distance_mm;
-				if (show_val != last_distance)
-				{
-					last_distance = show_val;
-					OLED_ShowString(2, 8, "    ");   // 清数字区
-					if (show_val == 0xFFFF)
-						OLED_ShowString(2, 8, "----");   // 无数据/失联
-					else
-						OLED_ShowInt(2, 8, show_val); // 距离（mm）
-				}
-			}
-
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 			WheelSpeed_Update();
 			WheelSpeed_DisplayUpdate();
@@ -207,7 +167,7 @@ int main(void)//方向盘ecu
 			if (data_len != TX_DATA_LEN)
 			{
 				Motor_SetCW(0);
-				continue;
+				goto distance_process;
 			}
 			
 			/*********************************接收数据处理**************************************/
@@ -217,7 +177,7 @@ int main(void)//方向盘ecu
 				!(rx_buffer[0] == 0x01 && rx_buffer[4] == 0x02 && rx_buffer[6] == 0x03))
 			{
 				Motor_SetCW(0);
-				continue;
+				goto distance_process;
 			}
 
 			if (rx_buffer[5] != last_dnr)
@@ -309,6 +269,47 @@ int main(void)//方向盘ecu
 				WS2812_Show();                                // 每次刷新发送一次
 			}
 			
+			distance_process:
+			/* ===== 测距解析（放在主循环最后，避免和其它功能冲突） ===== */
+			while (g_uart_rx_tail != g_uart_rx_head)
+			{
+				char c = (char)g_uart_rx_buf[g_uart_rx_tail];
+				g_uart_rx_tail = (uint16_t)((g_uart_rx_tail + 1) % UART_RX_BUF_SIZE);
+				if (c == '\r' || c == '\n')
+				{
+					if (line_len >= 3 && line[0] == 'D' && line[1] == ':')
+					{
+						uint16_t val = 0;
+						for (uart_i = 2; uart_i < line_len; uart_i++)
+							if (line[uart_i] >= '0' && line[uart_i] <= '9')
+								val = val * 10 + (uint16_t)(line[uart_i] - '0');
+						distance_mm = val;
+						s_last_received_ms = SysTick_GetTick();
+					}
+					line_len = 0;
+				}
+				else if (c >= ' ' && line_len < 15)
+				{
+					line[line_len++] = c;
+				}
+			}
+
+			/* 距离显示（含 1s 超时失联检测） */
+			{
+				uint32_t now_ms = SysTick_GetTick();
+				uint16_t show_val = ((uint32_t)(now_ms - s_last_received_ms) > 1000U)
+				                    ? 0xFFFF : distance_mm;
+				if (show_val != last_distance)
+				{
+					last_distance = show_val;
+					OLED_ShowString(2, 8, "    ");   // 清数字区
+					if (show_val == 0xFFFF)
+						OLED_ShowString(2, 8, "----");   // 无数据/失联
+					else
+						OLED_ShowInt(2, 8, show_val); // 距离（mm）
+				}
+			}
+
 			/*printf("wheel:%2d  pedal:%3d  DNR:%c  light:%s\n" ,
 					map_wheel(rx_buffer[1]*256+rx_buffer[2]),
 					map_pedal(rx_buffer[3]), 
