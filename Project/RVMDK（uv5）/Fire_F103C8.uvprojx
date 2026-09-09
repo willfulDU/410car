@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F10X_MD, USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Libraries\CMSIS;..\..\User;..\..\Libraries\FWlib\inc;..\..\User\usart;..\..\User\can;..\..\User\ws2812b;..\..\User\pedal;..\..\User\vl53l0\core\inc;..\..\User\vl53l0\demo;..\..\User\vl53l0\platform\inc;..\..\User\motor;..\..\User\turn;..\..\User\oled;..\..\User\SysTick;..\..\User\si24r1\drv_mcu\inc;..\..\User\si24r1\drv_periph\inc;..\..\User\wheel;..\..\User\switch</IncludePath>
+              <IncludePath>..\..\Libraries\CMSIS;..\..\User;..\..\Libraries\FWlib\inc;..\..\User\usart;..\..\User\can;..\..\User\ws2812b;..\..\User\pedal;..\..\User\vl53l0\core\inc;..\..\User\vl53l0\demo;..\..\User\vl53l0\platform\inc;..\..\User\motor;..\..\User\turn;..\..\User\oled;..\..\User\SysTick;..\..\User\si24r1\drv_mcu\inc;..\..\User\si24r1\drv_periph\inc;..\..\User\wheel;..\..\User\switch;..\..\User\wheel_speed;..\..\User\differential_steering;..\..\User\distance_display</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -654,6 +654,31 @@
               <FileName>switch.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\User\switch\switch.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Vehicle processing</GroupName>
+          <Files>
+            <File>
+              <FileName>wheel_speed.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\User\wheel_speed\wheel_speed.c</FilePath>
+            </File>
+            <File>
+              <FileName>wheel_speed_calc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\User\wheel_speed\wheel_speed_calc.c</FilePath>
+            </File>
+            <File>
+              <FileName>differential_steering.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\User\differential_steering\differential_steering.c</FilePath>
+            </File>
+            <File>
+              <FileName>distance_display.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\User\distance_display\distance_display.c</FilePath>
             </File>
           </Files>
         </Group>

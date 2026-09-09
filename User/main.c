@@ -87,6 +87,39 @@ int main(void)//方向盘ecu
 
 	#ifdef _MAIN_ECU_
 
+	#include "distance_display.h"
+
+	static DistanceDisplay s_distance_display;
+
+	static void DistanceDisplay_Update(void)
+	{
+		static uint32_t last_update_ms = 0U;
+		static char previous[DISTANCE_DISPLAY_TEXT_SIZE] = "D:-----mm";
+		char text[DISTANCE_DISPLAY_TEXT_SIZE];
+		uint8_t data;
+		uint32_t received_ms;
+		uint32_t now;
+
+		while (USART_DistanceRx_Pop(&data, &received_ms) != 0U)
+		{
+			DistanceDisplay_Receive(&s_distance_display, data, received_ms);
+		}
+
+		now = SysTick_GetTick();
+		if ((uint32_t)(now - last_update_ms) < DISTANCE_DISPLAY_PERIOD_MS)
+		{
+			return;
+		}
+		last_update_ms = now;
+		DistanceDisplay_Format(&s_distance_display, now, text);
+		if (strcmp(text, previous) != 0)
+		{
+			/* Row 2, columns 6..14; preserve the enlarged group number. */
+			OLED_ShowString(2, 6, text);
+			strcpy(previous, text);
+		}
+	}
+
 	#define WHEEL_SPEED_DISPLAY_PERIOD_MS  250U
 
 	static void WheelSpeed_DisplayUpdate(void)
@@ -120,6 +153,8 @@ int main(void)//方向盘ecu
 		SystemInit();
 		SysTick_Init();
 		USART_Config();
+		DistanceDisplay_Init(&s_distance_display);
+		USART_DistanceRx_Enable();
 		
 		drv_delay_init();
 		drv_spi_init();
@@ -152,6 +187,7 @@ int main(void)//方向盘ecu
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
 		OLED_ShowString2x(1, 1, GROUP_NO);
 		OLED_ShowString(1, 6, SHOW_DATE);
+		OLED_ShowString(2, 6, "D:-----mm");
 		WS2812_Init();
 		
 		Turn_Init();
@@ -167,6 +203,8 @@ int main(void)//方向盘ecu
 		
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
+			/* Consume distance data even when the steering radio is offline. */
+			DistanceDisplay_Update();
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 			WheelSpeed_Update();
 			WheelSpeed_DisplayUpdate();
