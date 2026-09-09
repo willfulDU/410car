@@ -113,6 +113,11 @@ void WS2812_Show(void)
     }
     while (idx < total) spi_buf_all[idx++] = 0x00;
 
+    /* 临界区：发送期间禁止中断，避免 SysTick(10us) 打断 SPI 时序
+     * 导致 WS2812B 数据错位、颜色乱码 */
+    __disable_irq();
+
+
     /* 阶段1: 复位 */
     pin_low();
     delay_us(80);
@@ -145,6 +150,8 @@ void WS2812_Show(void)
     SPI_Cmd(SPI2, DISABLE);
     pin_low();
     delay_us(80);
+
+    __enable_irq();   // 恢复中断
 }
 void WS2812_Blink(uint8_t left, uint8_t right,
                   uint8_t r, uint8_t g, uint8_t b,
