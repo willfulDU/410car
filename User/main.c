@@ -19,10 +19,13 @@
 #include "motor.h"
 #include "turn.h"
 #include "oled.h"
+#include "switch.h"
 
 #endif
 
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
+#define GROUP_NO     "01"       // 组号（上电/重置后显示）
+#define SHOW_DATE    "2026.9"   // 显示日期
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -91,11 +94,21 @@ int main(void)//方向盘ecu
 		
 		uint8_t rx_buffer[32];       // 接收缓冲区（足够大）
 		volatile uint8_t data_len;
+		uint8_t last_dnr = 0xFF;
+		uint8_t last_left_right = 0xFF;
 		uint16_t wheel_value;
 		uint8_t motor_duty;
 		uint8_t direction;
 		
 		OLED_Init();
+		OLED_ShowString(1, 1, "GEAR:");
+		OLED_ShowString(2, 1, "TURN:");
+		OLED_ShowString(1, 7, "N  ");
+		OLED_ShowString(2, 7, "OFF  ");
+		
+		/* ===== 上电/重置后显示组号 + 日期（PPT 评分注要求） ===== */
+		OLED_ShowString2x(1, 4, GROUP_NO);   // 上半屏 2x 大号显示组号
+		OLED_ShowString(4, 6, SHOW_DATE);    // 第 4 行显示日期
 		
 		WS2812_Init();
 		
@@ -120,10 +133,45 @@ int main(void)//方向盘ecu
 			/*********************************接收数据处理**************************************/
 			/*数据组成：（方向盘转角、踏板标志）（方向盘转角量1）（方向盘转角量2）（油门踏板量）（前进后退空挡标志）（前进后退空挡信号）（左右转向灯标志）（左右转灯信号）*/
 			/*标志位用来二次验证，以免数据错用*/
-			if(!(rx_buffer[0]==0x01&&rx_buffer[4]==0x02&&rx_buffer[6]==0x03))
+			if (data_len < TX_DATA_LEN ||
+				!(rx_buffer[0] == 0x01 && rx_buffer[4] == 0x02 && rx_buffer[6] == 0x03))
 			{
 				Motor_SetCW(0);
 				continue;
+
+			if (rx_buffer[5] != last_dnr)
+			{
+				last_dnr = rx_buffer[5];
+				switch (last_dnr)
+				{
+					case DNR_FORWARD:
+						OLED_ShowString(1, 7, "D  ");
+						break;
+					case DNR_REVERSE:
+						OLED_ShowString(1, 7, "R  ");
+						break;
+					default:
+						OLED_ShowString(1, 7, "N  ");
+						break;
+				}
+			}
+
+			if (rx_buffer[7] != last_left_right)
+			{
+				last_left_right = rx_buffer[7];
+				switch (last_left_right)
+				{
+					case LIGHT_LEFT:
+						OLED_ShowString(2, 7, "LEFT ");
+						break;
+					case LIGHT_RIGHT:
+						OLED_ShowString(2, 7, "RIGHT");
+						break;
+					default:
+						OLED_ShowString(2, 7, "OFF  ");
+						break;
+				}
+			}
 			}
 
 			wheel_value = ((uint16_t)rx_buffer[1] << 8) | rx_buffer[2];
