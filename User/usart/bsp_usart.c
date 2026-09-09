@@ -33,6 +33,7 @@ void USART_Config(void)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	USART_InitTypeDef USART_InitStructure;
+	NVIC_InitTypeDef NVIC_InitStructure;
 
 	// 打开串口GPIO的时钟
 	DEBUG_USART_GPIO_APBxClkCmd(DEBUG_USART_GPIO_CLK, ENABLE);
@@ -72,7 +73,6 @@ void USART_Config(void)
 	
 	/* 使能接收中断：主 ECU 用 USART1 接收测距 ECU 的距离文本 */
 	USART_ITConfig(DEBUG_USARTx, USART_IT_RXNE, ENABLE);
-	NVIC_InitTypeDef NVIC_InitStructure;
 	NVIC_InitStructure.NVIC_IRQChannel = DEBUG_USART_IRQ;
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;   /* 低于轮速 EXTI(0)，避免堵塞 */
