@@ -27,6 +27,7 @@
 #include "stm32f10x_it.h"
 #include "can/bsp_can.h"
 #include "SysTick/bsp_SysTick.h"
+#include "usart/bsp_usart.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
@@ -140,6 +141,36 @@ void SysTick_Handler(void)
 {
 	TimingDelay_Decrement();   /* 递减 TimingDelay，供 Delay_us/Delay_ms 使用 */
 	SysTick_Counter();         /* 1s 时基：累计并置 1s 标志位 */
+}
+/* 串口接收中断：解析测距 ECU 的文本帧 "D:距离\r\n" */
+void USART1_IRQHandler(void)
+{
+	static char line[16];
+	static uint8_t len = 0;
+	uint8_t i;
+	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
+	{
+		char c = (char)USART_ReceiveData(USART1);
+		if (c == '\r' || c == '\n')
+		{
+			/* 行结束，解析 D: 前缀 + 数字 */
+			if (len >= 3 && line[0] == 'D' && line[1] == ':')
+			{
+				uint16_t val = 0;
+				for (i = 2; i < len; i++)
+				{
+					if (line[i] >= '0' && line[i] <= '9')
+						val = val * 10 + (uint16_t)(line[i] - '0');
+				}
+				g_distance_mm = val;
+			}
+			len = 0;
+		}
+		else if (c >= ' ' && len < 15)
+		{
+			line[len++] = c;
+		}
+	}
 }
 
 /*

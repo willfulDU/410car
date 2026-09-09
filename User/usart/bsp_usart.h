@@ -104,6 +104,9 @@
 //#define  DEBUG_USART_IRQHandler         UART5_IRQHandler
 
 
+/* 解析出的测距距离（mm），USART1 中断里更新；0xFFFF=无数据 */
+extern volatile uint16_t g_distance_mm;
+
 void USART_Config(void);
 
 #endif /* __USART_H */

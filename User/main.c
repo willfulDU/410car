@@ -132,11 +132,13 @@ int main(void)//方向盘ecu
 		uint8_t motor_duty;
 		uint8_t direction;
 		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
+		static uint16_t last_distance = 0xFFFF;// 测距显示缓存
 		
 		OLED_Init();
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
 		OLED_ShowString2x(1, 1, GROUP_NO);
 		OLED_ShowString(1, 6, SHOW_DATE);
+		OLED_ShowString(2, 6, "D:----");   // 第 2 行：障碍距离占位
 		WS2812_Init();
 		
 		Turn_Init();
@@ -154,6 +156,17 @@ int main(void)//方向盘ecu
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 			WheelSpeed_Update();
 			WheelSpeed_DisplayUpdate();
+
+			/* 距离变化时刷新屏幕（第 2 行）：g_distance_mm 由串口中断更新 */
+			if (g_distance_mm != last_distance)
+			{
+				last_distance = g_distance_mm;
+				OLED_ShowString(2, 8, "    ");   // 清数字区
+				if (g_distance_mm == 0xFFFF)
+					OLED_ShowString(2, 8, "----");   // 无数据
+				else
+					OLED_ShowInt(2, 8, g_distance_mm); // 距离（mm）
+			}
 			if (data_len != TX_DATA_LEN)
 			{
 				Motor_SetCW(0);
@@ -274,16 +287,18 @@ int main(void)//方向盘ecu
 		SystemInit();
 		SysTick_Init();
 		USART_Config();
-		uint16_t distance=0;
+		uint16_t distance = 0;
+		uint16_t hist[4] = {0, 0, 0, 0};    // 滑动平均滤波窗口
+		uint8_t  idx = 0;
 		while(1)
 		{
-			distance=Distance_Update(1);
-			//测量模式
-			//#define Default_Mode   0// 默认
-			//#define HIGH_ACCURACY  1//高精度
-			//#define LONG_RANGE     2//长距离
-			//#define HIGH_SPEED     3//高速
-			printf("%d\n",distance);
+			distance = Distance_Update(1);   // 单次测距（约 33ms）
+			/* 滑动平均滤波（最近 4 次），平滑跳变 */
+			hist[idx] = distance;
+			idx = (uint8_t)((idx + 1) & 3);
+			distance = (uint16_t)((hist[0] + hist[1] + hist[2] + hist[3]) / 4);
+			/* 文本帧发送：D:距离\r\n，串口助手可直接查看 */
+			printf("D:%d\r\n", distance);
 		}
 	}
 	#endif
