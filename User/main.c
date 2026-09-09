@@ -99,9 +99,6 @@ int main(void)//方向盘ecu
 		uint8_t last_dnr = 0xFF;
 		uint8_t last_left_right = 0xFF;
 		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
-		static uint8_t  uart_state = 0;        // 串口帧解析状态机
-		static uint8_t  dist_hi = 0, dist_lo = 0;
-		static uint16_t distance_mm = 0xFFFF;   // 解析出的障碍距离（mm），0xFFFF=无数据
 		static uint16_t last_distance = 0xFFFF;// 屏幕显示缓存
 		
 		OLED_Init();
@@ -126,48 +123,14 @@ int main(void)//方向盘ecu
 		{
 			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
 
-			/* ===== 串口接收测距 ECU 的距离帧：0xAA 0x55 H L 校验 ===== */
-			while (g_uart_rx_tail != g_uart_rx_head)
+					/* 距离变化时刷新屏幕（第 4 行）：g_distance_mm 由串口中断更新 */
+			if (g_distance_mm != last_distance)
 			{
-				uint8_t b = g_uart_rx_buf[g_uart_rx_tail];
-				g_uart_rx_tail = (uint8_t)((g_uart_rx_tail + 1) % UART_RX_BUF_SIZE);
-
-				switch (uart_state)
-				{
-					case 0:                        // 等帧头 0xAA
-						if (b == 0xAA) uart_state = 1;
-						break;
-					case 1:                        // 等帧头 0x55
-						if (b == 0x55) uart_state = 2;
-						else if (b != 0xAA) uart_state = 0;
-						break;
-					case 2:                        // 距离高字节
-						dist_hi = b;
-						uart_state = 3;
-						break;
-					case 3:                        // 距离低字节
-						dist_lo = b;
-						uart_state = 4;
-						break;
-					case 4:                        // 校验
-						if (b == (uint8_t)(dist_hi + dist_lo))
-							distance_mm = (uint16_t)(((uint16_t)dist_hi << 8) | dist_lo);
-						uart_state = 0;
-						break;
-					default:
-						uart_state = 0;
-						break;
-				}
-			}
-
-			/* 距离变化时刷新屏幕（第 4 行） */
-			if (distance_mm != last_distance)
-			{
-				last_distance = distance_mm;
-				if (distance_mm == 0xFFFF)
+				last_distance = g_distance_mm;
+				if (g_distance_mm == 0xFFFF)
 					OLED_ShowString(4, 5, "----");   // 无数据
 				else
-					OLED_ShowInt(4, 5, distance_mm); // 距离（mm）
+					OLED_ShowInt(4, 5, g_distance_mm); // 距离（mm）
 			}
 
 			

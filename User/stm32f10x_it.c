@@ -148,8 +148,35 @@ void USART1_IRQHandler(void)
 	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
 	{
 		uint8_t data = (uint8_t)USART_ReceiveData(USART1);
-		g_uart_rx_buf[g_uart_rx_head] = data;
-		g_uart_rx_head = (uint8_t)((g_uart_rx_head + 1) % UART_RX_BUF_SIZE);
+		static uint8_t  state = 0;
+		static uint8_t  hi = 0, lo = 0;
+		/* 状态机解析距离帧：0xAA 0x55 H L 校验 */
+		switch (state)
+		{
+			case 0:                        /* 等帧头 0xAA */
+				if (data == 0xAA) state = 1;
+				break;
+			case 1:                        /* 等帧头 0x55 */
+				if (data == 0x55) state = 2;
+				else if (data != 0xAA) state = 0;
+				break;
+			case 2:                        /* 距离高字节 */
+				hi = data;
+				state = 3;
+				break;
+			case 3:                        /* 距离低字节 */
+				lo = data;
+				state = 4;
+				break;
+			case 4:                        /* 校验 */
+				if (data == (uint8_t)(hi + lo))
+					g_distance_mm = (uint16_t)(((uint16_t)hi << 8) | lo);
+				state = 0;
+				break;
+			default:
+				state = 0;
+				break;
+		}
 	}
 }
 

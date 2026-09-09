@@ -17,10 +17,8 @@
 
 #include "./usart/bsp_usart.h"
 
-/* 串口接收环形缓冲区定义 */
-volatile uint8_t g_uart_rx_buf[UART_RX_BUF_SIZE];
-volatile uint8_t g_uart_rx_head = 0;
-volatile uint8_t g_uart_rx_tail = 0;
+/* 解析出的测距距离（mm），USART1 中断里更新 */
+volatile uint16_t g_distance_mm = 0xFFFF;
 
 
 
