@@ -19,6 +19,7 @@
 #include "motor.h"
 #include "turn.h"
 #include "oled.h"
+#include "switch.h"
 
 #endif
 
@@ -90,8 +91,14 @@ int main(void)//方向盘ecu
 		
 		uint8_t rx_buffer[32];       // 接收缓冲区（足够大）
 		volatile uint8_t data_len;
+		uint8_t last_dnr = 0xFF;
+		uint8_t last_left_right = 0xFF;
 		
 		OLED_Init();
+		OLED_ShowString(1, 1, "GEAR:");
+		OLED_ShowString(2, 1, "TURN:");
+		OLED_ShowString(1, 7, "N  ");
+		OLED_ShowString(2, 7, "OFF  ");
 		
 		WS2812_Init();
 		
@@ -111,8 +118,43 @@ int main(void)//方向盘ecu
 			/*********************************接收数据处理**************************************/
 			/*数据组成：（方向盘转角、踏板标志）（方向盘转角量1）（方向盘转角量2）（油门踏板量）（前进后退空挡标志）（前进后退空挡信号）（左右转向灯标志）（左右转灯信号）*/
 			/*标志位用来二次验证，以免数据错用*/
-			if(!(rx_buffer[0]==0x01&&rx_buffer[4]==0x02&&rx_buffer[6]==0x03))
+			if (data_len < TX_DATA_LEN ||
+				!(rx_buffer[0] == 0x01 && rx_buffer[4] == 0x02 && rx_buffer[6] == 0x03))
 				continue;
+
+			if (rx_buffer[5] != last_dnr)
+			{
+				last_dnr = rx_buffer[5];
+				switch (last_dnr)
+				{
+					case DNR_FORWARD:
+						OLED_ShowString(1, 7, "D  ");
+						break;
+					case DNR_REVERSE:
+						OLED_ShowString(1, 7, "R  ");
+						break;
+					default:
+						OLED_ShowString(1, 7, "N  ");
+						break;
+				}
+			}
+
+			if (rx_buffer[7] != last_left_right)
+			{
+				last_left_right = rx_buffer[7];
+				switch (last_left_right)
+				{
+					case LIGHT_LEFT:
+						OLED_ShowString(2, 7, "LEFT ");
+						break;
+					case LIGHT_RIGHT:
+						OLED_ShowString(2, 7, "RIGHT");
+						break;
+					default:
+						OLED_ShowString(2, 7, "OFF  ");
+						break;
+				}
+			}
 			
 			/*printf("wheel:%2d  pedal:%3d  DNR:%c  light:%s\n" ,
 					map_wheel(rx_buffer[1]*256+rx_buffer[2]),
