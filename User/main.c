@@ -137,7 +137,6 @@ int main(void)//方向盘ecu
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
 		OLED_ShowString2x(1, 1, GROUP_NO);
 		OLED_ShowString(1, 6, SHOW_DATE);
-		
 		WS2812_Init();
 		
 		Turn_Init();
