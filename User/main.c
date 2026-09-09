@@ -26,6 +26,9 @@
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
 #define GROUP_NO     "01"       // 组号（上电/重置后显示）
 #define SHOW_DATE    "2026.9.9" // 显示日期
+#define PINK_R  255   // 转向灯颜色：粉色（R）
+#define PINK_G  105   // 转向灯颜色：粉色（G）
+#define PINK_B  180   // 转向灯颜色：粉色（B）
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -99,6 +102,7 @@ int main(void)//方向盘ecu
 		uint16_t wheel_value;
 		uint8_t motor_duty;
 		uint8_t direction;
+		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
 		
 		OLED_Init();
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
@@ -183,6 +187,45 @@ int main(void)//方向盘ecu
 			else
 			{
 				Motor_SetCW(0);
+			}
+			
+			/* ===== 灯光：显式逐灯硬性设置，避免残留/冲突 =====
+			 * 先硬性熄灭所有灯，再只点亮该亮的灯；
+			 * 倒挡灯常亮红色，转向灯粉色 1s 闪烁（blink_on 每 1s 切换） */
+			if (SysTick_GetFlag())
+			{
+				SysTick_ClearFlag();                          // 清 1s 标志
+				blink_on = !blink_on;                         // 每 1s 切换闪烁相位
+				
+				/* 1. 硬性熄灭所有灯（0~4），杜绝残留 */
+				WS2812_SetPixel(0, 0, 0, 0);
+				WS2812_SetPixel(1, 0, 0, 0);
+				WS2812_SetPixel(2, 0, 0, 0);
+				WS2812_SetPixel(3, 0, 0, 0);
+				WS2812_SetPixel(4, 0, 0, 0);
+				
+				/* 2. 点亮该亮的灯 */
+				if (rx_buffer[5] == 2)                        // 倒挡：常亮红色（3、4 号）
+				{
+					WS2812_SetPixel(3, 255, 0, 0);
+					WS2812_SetPixel(4, 255, 0, 0);
+				}
+				else if (blink_on)                            // 转向灯闪烁亮阶段
+				{
+					if (rx_buffer[7] == 1)                       // 左转向：粉色（1、3 号）
+					{
+						WS2812_SetPixel(1, PINK_R, PINK_G, PINK_B);
+						WS2812_SetPixel(3, PINK_R, PINK_G, PINK_B);
+					}
+					else if (rx_buffer[7] == 2)                  // 右转向：粉色（2、4 号）
+					{
+						WS2812_SetPixel(2, PINK_R, PINK_G, PINK_B);
+						WS2812_SetPixel(4, PINK_R, PINK_G, PINK_B);
+					}
+				}
+				/* 3. 无转向/无倒挡，或闪烁灭阶段：所有灯已硬性熄灭 */
+				
+				WS2812_Show();                                // 每次刷新发送一次
 			}
 			
 			/*printf("wheel:%2d  pedal:%3d  DNR:%c  light:%s\n" ,

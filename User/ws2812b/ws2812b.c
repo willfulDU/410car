@@ -81,6 +81,8 @@ static void encode_byte(uint8_t byte, uint8_t *buf)
 void WS2812_Init(void)
 {
     spi_init();
+    WS2812_Clear();   // 清空所有灯缓存
+    WS2812_Show();    // 上电立即熄灭所有灯，避免残留随机颜色
 }
 
 void WS2812_SetPixel(uint16_t n, uint8_t r, uint8_t g, uint8_t b)
@@ -110,6 +112,11 @@ void WS2812_Show(void)
         encode_byte(led_data[i][2], &spi_buf_all[idx]); idx += 5;
     }
     while (idx < total) spi_buf_all[idx++] = 0x00;
+
+    /* 临界区：发送期间禁止中断，避免 SysTick(10us) 打断 SPI 时序
+     * 导致 WS2812B 数据错位、颜色乱码 */
+    __disable_irq();
+
 
     /* 阶段1: 复位 */
     pin_low();
@@ -143,6 +150,8 @@ void WS2812_Show(void)
     SPI_Cmd(SPI2, DISABLE);
     pin_low();
     delay_us(80);
+
+    __enable_irq();   // 恢复中断
 }
 void WS2812_Blink(uint8_t left, uint8_t right,
                   uint8_t r, uint8_t g, uint8_t b,
@@ -189,10 +198,7 @@ void WS2812_Blink(uint8_t left, uint8_t right,
     last_state = blink_state;
 
     /* 先关闭所有灯，防止之前的灯状态残留 */
-    WS2812_SetPixel(1, 0, 0, 0);
-    WS2812_SetPixel(2, 0, 0, 0);
-    WS2812_SetPixel(3, 0, 0, 0);
-    WS2812_SetPixel(4, 0, 0, 0);
+    WS2812_Clear();   // 清空所有灯（0~LED_NUM-1），避免灯 0 残留
 
     /* 闪烁亮起阶段 */
     if (blink_state)
