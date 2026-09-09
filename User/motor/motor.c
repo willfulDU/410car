@@ -172,7 +172,7 @@ void Motor_SetCW(uint8_t status)
  **********************************************************/
 uint8_t map_pedal(uint16_t pot)
 {
-    if (pot <= 0x78) return 0;
-    if (pot >= 0xC8) return 100;
-    return (uint8_t)(((uint32_t)(pot - 0x78) * 100) / (0xC8 - 0x78));
+    if (pot >= 0xC8) return 0;
+    if (pot <= 0x78) return 100;
+    return (uint8_t)(((uint32_t)(0xC8 - pot) * 100) / (0xC8 - 0x78));
 }
