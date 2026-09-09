@@ -136,8 +136,10 @@ int main(void)//方向盘ecu
 		static uint16_t distance_mm = 0xFFFF;   // 解析出的距离
 		static char line[16];                    // 串口行缓冲
 		static uint8_t line_len = 0;             // 行长度
+		static uint32_t s_last_received_ms = 0;    // 最近收到测距数据的时间
 		uint8_t uart_i;                          // 解析循环变量
 		
+		SysTick_Delay_Ms(200);   // SSD1306 冷启动延时，避免上电黑屏
 		OLED_Init();
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
 		OLED_ShowString2x(1, 1, GROUP_NO);
@@ -157,11 +159,7 @@ int main(void)//方向盘ecu
 		
 		while (1)	//	核心的主频只有72MHz，因此需要尽量剪枝掉耗时的语句；禁止超频
 		{
-			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
-			WheelSpeed_Update();
-			WheelSpeed_DisplayUpdate();
-
-			/* 串口行解析（主循环里，中断只缓冲字节）：D:距离\r\n */
+			/* ===== 测距解析（放在无线接收之前，避免无线阻塞拖累测距） ===== */
 			while (g_uart_rx_tail != g_uart_rx_head)
 			{
 				char c = (char)g_uart_rx_buf[g_uart_rx_tail];
@@ -175,6 +173,7 @@ int main(void)//方向盘ecu
 							if (line[uart_i] >= '0' && line[uart_i] <= '9')
 								val = val * 10 + (uint16_t)(line[uart_i] - '0');
 						distance_mm = val;
+						s_last_received_ms = SysTick_GetTick();
 					}
 					line_len = 0;
 				}
@@ -184,16 +183,27 @@ int main(void)//方向盘ecu
 				}
 			}
 
-			/* 距离变化时刷新屏幕（第 2 行） */
-			if (distance_mm != last_distance)
+			/* 距离显示（含 1s 超时失联检测） */
 			{
-				last_distance = distance_mm;
-				OLED_ShowString(2, 8, "    ");   // 清数字区
-				if (distance_mm == 0xFFFF)
-					OLED_ShowString(2, 8, "----");   // 无数据
-				else
-					OLED_ShowInt(2, 8, distance_mm); // 距离（mm）
+				uint32_t now_ms = SysTick_GetTick();
+				uint16_t show_val = ((uint32_t)(now_ms - s_last_received_ms) > 1000U)
+				                    ? 0xFFFF : distance_mm;
+				if (show_val != last_distance)
+				{
+					last_distance = show_val;
+					OLED_ShowString(2, 8, "    ");   // 清数字区
+					if (show_val == 0xFFFF)
+						OLED_ShowString(2, 8, "----");   // 无数据/失联
+					else
+						OLED_ShowInt(2, 8, show_val); // 距离（mm）
+				}
 			}
+
+			data_len = NRF24L01_RxPacket(rx_buffer);   // 等待并接收数据
+			WheelSpeed_Update();
+			WheelSpeed_DisplayUpdate();
+
+			
 			if (data_len != TX_DATA_LEN)
 			{
 				Motor_SetCW(0);
