@@ -77,12 +77,12 @@ Light_State Get_LeftRight(void)
     /* PB6高电平，PB8低电平：Left */
     if ((pb6_state == Bit_SET) && (pb8_state == Bit_RESET))
     {
-        return LIGHT_LEFT;
+        return LIGHT_RIGHT;   /* 拨杆向上：右转 */
     }
     /* PB6低电平，PB8高电平：Right */
     else if ((pb6_state == Bit_RESET) && (pb8_state == Bit_SET))
     {
-        return LIGHT_RIGHT;
+        return LIGHT_LEFT;    /* 拨杆向下：左转 */
     }
     /* 其他情况：无灯 */
     else
