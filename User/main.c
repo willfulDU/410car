@@ -25,6 +25,9 @@
 #define TX_DATA_LEN  8   // 每帧发送 8 个字节（即 8 个两位十六进制数）
 #define GROUP_NO     "01"       // 组号（上电/重置后显示）
 #define SHOW_DATE    "2026.9"   // 显示日期
+#define PINK_R  255   // 转向灯颜色：粉色（R）
+#define PINK_G  105   // 转向灯颜色：粉色（G）
+#define PINK_B  180   // 转向灯颜色：粉色（B）
 
 /* 全局变量（如需从串口接收数据可启用） */
 uint8_t g_UartRxBuffer[100] = {0};
@@ -119,6 +122,21 @@ int main(void)//方向盘ecu
 			/*标志位用来二次验证，以免数据错用*/
 			if(!(rx_buffer[0]==0x01&&rx_buffer[4]==0x02&&rx_buffer[6]==0x03))
 				continue;
+			
+			/* ===== 灯光：转向灯（粉色，1s 闪烁）/ 倒挡灯（红色） =====
+			 * 闪烁计时复用 SysTick 1s 标志：每 1s 调用一次、切换一次亮灭 */
+			if (SysTick_GetFlag())
+			{
+				SysTick_ClearFlag();                          // 清 1s 标志，等待下一次
+				if (rx_buffer[5] == 2)                        // 档位=倒挡：倒挡灯（红色常亮）
+					WS2812_Blink(1, 1, PINK_R, PINK_G, PINK_B, 1);
+				else if (rx_buffer[7] == 1)                   // 左转向：粉色
+					WS2812_Blink(1, 0, PINK_R, PINK_G, PINK_B, 1);
+				else if (rx_buffer[7] == 2)                   // 右转向：粉色
+					WS2812_Blink(0, 1, PINK_R, PINK_G, PINK_B, 1);
+				else                                          // 无转向：熄灭
+					WS2812_Blink(0, 0, 0, 0, 0, 1);
+			}
 			
 			/*printf("wheel:%2d  pedal:%3d  DNR:%c  light:%s\n" ,
 					map_wheel(rx_buffer[1]*256+rx_buffer[2]),
