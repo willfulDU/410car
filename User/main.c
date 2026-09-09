@@ -101,7 +101,7 @@ int main(void)//方向盘ecu
 		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
 		static uint8_t  uart_state = 0;        // 串口帧解析状态机
 		static uint8_t  dist_hi = 0, dist_lo = 0;
-		static uint16_t distance_mm = 0;       // 解析出的障碍距离（mm）
+		static uint16_t distance_mm = 0xFFFF;   // 解析出的障碍距离（mm），0xFFFF=无数据
 		static uint16_t last_distance = 0xFFFF;// 屏幕显示缓存
 		
 		OLED_Init();
@@ -109,6 +109,7 @@ int main(void)//方向盘ecu
 		OLED_ShowString2x(1, 1, GROUP_NO);
 		OLED_ShowString(1, 6, SHOW_DATE);
 		OLED_ShowString(4, 1, "DIS:");   // 第 4 行：障碍距离标签
+		OLED_ShowString(4, 5, "----");   // 无数据占位符
 		
 		WS2812_Init();
 		
@@ -163,7 +164,10 @@ int main(void)//方向盘ecu
 			if (distance_mm != last_distance)
 			{
 				last_distance = distance_mm;
-				OLED_ShowInt(4, 5, distance_mm);
+				if (distance_mm == 0xFFFF)
+					OLED_ShowString(4, 5, "----");   // 无数据
+				else
+					OLED_ShowInt(4, 5, distance_mm); // 距离（mm）
 			}
 
 			
