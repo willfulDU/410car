@@ -145,31 +145,12 @@ void SysTick_Handler(void)
 /* 串口接收中断：解析测距 ECU 的文本帧 "D:距离\r\n" */
 void USART1_IRQHandler(void)
 {
-	static char line[16];
-	static uint8_t len = 0;
-	uint8_t i;
+	/* 只缓冲字节，解析放到主循环，避免在中断里做字符串处理堵塞轮速 EXTI */
 	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
 	{
-		char c = (char)USART_ReceiveData(USART1);
-		if (c == '\r' || c == '\n')
-		{
-			/* 行结束，解析 D: 前缀 + 数字 */
-			if (len >= 3 && line[0] == 'D' && line[1] == ':')
-			{
-				uint16_t val = 0;
-				for (i = 2; i < len; i++)
-				{
-					if (line[i] >= '0' && line[i] <= '9')
-						val = val * 10 + (uint16_t)(line[i] - '0');
-				}
-				g_distance_mm = val;
-			}
-			len = 0;
-		}
-		else if (c >= ' ' && len < 15)
-		{
-			line[len++] = c;
-		}
+		uint8_t data = (uint8_t)USART_ReceiveData(USART1);
+		g_uart_rx_buf[g_uart_rx_head] = data;
+		g_uart_rx_head = (uint16_t)((g_uart_rx_head + 1) % UART_RX_BUF_SIZE);
 	}
 }
 

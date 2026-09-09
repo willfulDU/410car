@@ -133,6 +133,10 @@ int main(void)//方向盘ecu
 		uint8_t direction;
 		static uint8_t blink_on = 0;      // 转向灯闪烁相位（0=灭，1=亮）
 		static uint16_t last_distance = 0xFFFF;// 测距显示缓存
+		static uint16_t distance_mm = 0xFFFF;   // 解析出的距离
+		static char line[16];                    // 串口行缓冲
+		static uint8_t line_len = 0;             // 行长度
+		uint8_t uart_i;                          // 解析循环变量
 		
 		OLED_Init();
 		/* 静态区：2x 组号占第 1~2 行第 1~4 列，日期在其右侧。 */
@@ -157,15 +161,38 @@ int main(void)//方向盘ecu
 			WheelSpeed_Update();
 			WheelSpeed_DisplayUpdate();
 
-			/* 距离变化时刷新屏幕（第 2 行）：g_distance_mm 由串口中断更新 */
-			if (g_distance_mm != last_distance)
+			/* 串口行解析（主循环里，中断只缓冲字节）：D:距离\r\n */
+			while (g_uart_rx_tail != g_uart_rx_head)
 			{
-				last_distance = g_distance_mm;
+				char c = (char)g_uart_rx_buf[g_uart_rx_tail];
+				g_uart_rx_tail = (uint16_t)((g_uart_rx_tail + 1) % UART_RX_BUF_SIZE);
+				if (c == '\r' || c == '\n')
+				{
+					if (line_len >= 3 && line[0] == 'D' && line[1] == ':')
+					{
+						uint16_t val = 0;
+						for (uart_i = 2; uart_i < line_len; uart_i++)
+							if (line[uart_i] >= '0' && line[uart_i] <= '9')
+								val = val * 10 + (uint16_t)(line[uart_i] - '0');
+						distance_mm = val;
+					}
+					line_len = 0;
+				}
+				else if (c >= ' ' && line_len < 15)
+				{
+					line[line_len++] = c;
+				}
+			}
+
+			/* 距离变化时刷新屏幕（第 2 行） */
+			if (distance_mm != last_distance)
+			{
+				last_distance = distance_mm;
 				OLED_ShowString(2, 8, "    ");   // 清数字区
-				if (g_distance_mm == 0xFFFF)
+				if (distance_mm == 0xFFFF)
 					OLED_ShowString(2, 8, "----");   // 无数据
 				else
-					OLED_ShowInt(2, 8, g_distance_mm); // 距离（mm）
+					OLED_ShowInt(2, 8, distance_mm); // 距离（mm）
 			}
 			if (data_len != TX_DATA_LEN)
 			{
